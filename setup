@@ -4,8 +4,8 @@
 # Patched by Markus Blatt on 2018-10-17 to support
 # the patch for kernel version >= 4.18 by phonics
 # from 2018-10-09
-kv=$(uname -r | grep -Po '^[0-9]\.[0-9]+(\.[1-9]+)?')
-IFS='.' read -ra kv_numbers <<< "$kv"
+kv="5.10"
+IFS='.' read -ra kv_numbers <<<"$kv"
 linux_dir="linux-$kv"
 alx_driver_path="drivers/net/ethernet/atheros/alx"
 dkms_dir="/usr/src/alx-$kv"
@@ -13,7 +13,7 @@ deb_dependencies="git patch dkms"
 
 get_linux_source() {
   if [ ! -d $linux_dir ]; then
-    
+
     echo "Downloading kernel source for $kv by git..."
     git clone --depth 1 -b "v$kv" git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git "linux-$kv"
     if [ $? != 0 ]; then
@@ -34,8 +34,8 @@ get_linux_source() {
 get_deps() {
   echo "Checking dependencies..."
   for i in $deb_dependencies; do
-    which $i > /dev/null
-    if [ $? != 0 ];then
+    which $i >/dev/null
+    if [ $? != 0 ]; then
       if [ -f /etc/debian_version ]; then
         echo "installing dependencies... ($deb_dependencies)"
         sudo apt-get install $deb_dependencies
@@ -57,39 +57,22 @@ prepare_src() {
   echo "Preparing dkms module source..."
   patch="000-enable-alx-wol.patch"
   offset=8
-  # newer patch for kernel 5.10 and up
-  if [ "${kv_numbers[0]}" -ge 5 ] && [ "${kv_numbers[1]}" -ge 10 ]; then
-    echo "Using 5.10 patch..."
-    patch="000-enable-alx-wol-5.10.patch"
-    offset=6
-  # newer patch for kernel 5.4 and up
-  elif [ "${kv_numbers[0]}" -ge 5 ] && [ "${kv_numbers[1]}" -ge 4 ]; then
-    echo "Using 5.4+ patch..."
-    patch="000-enable-alx-wol-5.4.x.patch"
-    offset=6
-  # newer patch for kernel 4.18 and up
-  elif [ "${kv_numbers[0]}" -ge 4 ] && [ "${kv_numbers[1]}" -ge 18 ] || [ "${kv_numbers[0]}" -ge 5 ] && [ "${kv_numbers[1]}" -lt 4 ]; then
-    echo "Using 4.18+ patch..."
-    patch="000-enable-alx-wol-4.18.patch"
-    offset=6
-  # newer patch for kernel 4.9 and up
-  elif [ "${kv_numbers[0]}" -ge 4 ] && [ "${kv_numbers[1]}" -ge 9 ] && [ "${kv_numbers[1]}" -lt 18 ]; then
-    echo "Using 4.9+ patch..."
-    patch="000-enable-alx-wol-4.9.patch"
-    offset=5
-  fi
+
+  echo "Using 5.10 patch..."
+  patch="000-enable-alx-wol-5.10.patch"
+  offset=6
 
   if [ -d "$dkms_dir/src" ]; then sudo rm -Rf $dkms_dir/src; fi
 
   sudo mkdir -p $dkms_dir/src &&
-    sed "s|KERNEL_VERSION|$kv|g" dkms.conf | sudo tee $dkms_dir/dkms.conf > /dev/null &&
+    sed "s|KERNEL_VERSION|$kv|g" dkms.conf | sudo tee $dkms_dir/dkms.conf >/dev/null &&
     sudo cp $linux_dir/$alx_driver_path/* $dkms_dir/src &&
-    sudo patch -d $dkms_dir/src -V never -r - -t -s -N -p$offset < "$patch" &&
+    sudo patch -d $dkms_dir/src -V never -r - -t -s -N -p$offset <"$patch" &&
     echo "Done"
 }
 
-dkms_remove(){
-  if /usr/sbin/dkms status | grep alx ; then
+dkms_remove() {
+  if /usr/sbin/dkms status | grep alx; then
     echo "uninstalling dkms module"
     sudo /usr/sbin/dkms remove alx/$kv --all
   fi
